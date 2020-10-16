@@ -3,10 +3,20 @@
 data_dir=test_data
 data_name=test_data
 
-nj=4
-stage=0
+nj=20
+stage=$1
 
-if [ $stage -le 0 ]; then
+
+if [ $stage -eq 0 ]; then
+	rm -rf ark
+	for type in mfcc fbank spectrogram; do
+		for file in $(find ${data_dir} -name *.${type}); do
+			rm -rf $file
+		done
+	done
+fi
+
+if [ $stage -eq 1 ]; then
 	echo prepare $data_dir...
 	rm -rf ark/sdata
 	mkdir -p ark/sdata
@@ -20,7 +30,6 @@ if [ $stage -le 0 ]; then
 		utts=`find -L $reader_dir/ -iname "*.wav" | sort | xargs -I% basename % .wav`
 		for utt in $utts; do
 			echo "${reader_dir}/${utt} ${reader_dir}/${utt}.wav">>$wav_scp
-			echo "${reader_dir}/${utt} ${reader_dir}/${utt}.wav"
 		done
 	done
 
@@ -33,31 +42,19 @@ if [ $stage -le 0 ]; then
 fi
 
 
-if [ $stage -le 1 ]; then
-	rm -rf ark/mfcc
-	mkdir -p ark/mfcc 
-	utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-		compute-mfcc-feats scp:ark/sdata/JOB ark:ark/mfcc/JOB.ark
+if [ $stage -eq 2 ]; then
+	for type in mfcc fbank spectrogram; do
+		rm -rf ark/$type
+		mkdir -p ark/$type 
+
+		utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
+			compute-${type}-feats scp:ark/sdata/JOB ark:ark/${type}/JOB.ark
+
+		utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
+			python scripts/ark2pt.py \
+			--ark_path="ark/${type}/JOB.ark" \
+			--suffix="${type}"
+	done
 fi
 
-
-if [ $stage -le 2 ]; then
-	rm -rf ark/fbank
-	mkdir -p ark/fbank 
-	utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-		compute-fbank-feats scp:ark/sdata/JOB ark:ark/fbank/JOB.ark
-fi
-
-
-if [ $stage -le 3 ]; then
-	rm -rf ark/spectrogram
-	mkdir -p ark/spectrogram 
-	utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-		compute-spectrogram-feats scp:ark/sdata/JOB ark:ark/spectrogram/JOB.ark
-fi
-
-
-if [ $stage -eq 4 ]; then
-	python print_ark.py
-fi
 
