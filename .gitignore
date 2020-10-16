@@ -1,5 +1,6 @@
 *.ark
 data
+ark/
 
 # JetBrains PyCharm IDE
 .idea/
