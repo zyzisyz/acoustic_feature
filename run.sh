@@ -51,9 +51,10 @@ if [ $stage -eq 2 ]; then
 			compute-${type}-feats scp:ark/sdata/JOB ark:ark/${type}/JOB.ark
 
 		utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-			python scripts/ark2pt.py \
+			python local/ark2pt.py \
 			--ark_path="ark/${type}/JOB.ark" \
-			--suffix="${type}"
+			--suffix="${type}" \
+			--min_len=100
 	done
 fi
 
