@@ -5,7 +5,7 @@ data_name=test_data
 
 nj=20
 stage=$1
-
+type=mfcc
 
 if [ $stage -eq 0 ]; then
 	rm -rf ark
@@ -23,14 +23,8 @@ if [ $stage -eq 1 ]; then
 
 	# make data list
 	wav_scp=ark/data_list; [[ -f "$wav_scp" ]] && rm $wav_scp
-	[ ! -d $data_dir ] && echo "$0: no such directory $data_dir" && exit 1;
-	data_dirs=$(find -L ${data_dir}${part} -mindepth 1 -maxdepth 1 -type d | sort -g | sort -u)
-	for reader_dir in $data_dirs; do
-		reader=$(basename $reader_dir)
-		utts=`find -L $reader_dir/ -iname "*.wav" | sort | xargs -I% basename % .wav`
-		for utt in $utts; do
-			echo "${reader_dir}/${utt} ${reader_dir}/${utt}.wav">>$wav_scp
-		done
+	for wav in `find -L ${data_dir} -name "*.wav"`; do
+		echo ${wav%.*} $wav >> $wav_scp
 	done
 
 	split_scps=""
@@ -43,19 +37,21 @@ fi
 
 
 if [ $stage -eq 2 ]; then
-	for type in mfcc fbank spectrogram; do
-		rm -rf ark/$type
-		mkdir -p ark/$type 
+	echo compute $type
+	rm -rf ark/$type
+	mkdir -p ark/$type 
 
-		utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-			compute-${type}-feats scp:ark/sdata/JOB ark:ark/${type}/JOB.ark
+	utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
+		compute-${type}-feats --config="conf/${type}.conf" scp:ark/sdata/JOB ark:- \| \
+		apply-cmvn-sliding --norm-vars=false --center=true --cmn-window=300 ark:- ark:ark/${type}/JOB.ark \
+		|| exit 1;
 
-		utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
-			python local/ark2pt.py \
-			--ark_path="ark/${type}/JOB.ark" \
-			--suffix="${type}" \
-			--min_len=100
-	done
+	echo make $type
+	utils/run.pl JOB=1:$nj ark/sdata/log/JOB.log \
+		python local/ark2pt.py \
+		--ark_path="ark/${type}/JOB.ark" \
+		--suffix="${type}" \
+		--min_len=100
 fi
 
 
